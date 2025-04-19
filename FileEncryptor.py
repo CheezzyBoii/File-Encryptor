@@ -1,20 +1,28 @@
 import os
-import sys
-import subprocess
+import secrets
 import tkinter as tk
 from tkinter import filedialog, simpledialog, messagebox
-import secrets
 import re
-import tempfile
-import hashlib
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.exceptions import InvalidTag
+import subprocess
+import sys
 
+# ========== 🔧 Auto-install 'cryptography' if missing ==========
+try:
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.exceptions import InvalidTag
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "cryptography"])
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends import default_backend
+    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+    from cryptography.exceptions import InvalidTag
+
+# Backend for cryptographic operations
 backend = default_backend()
-
 
 # =========================
 # 🔑 Key Derivation
@@ -28,7 +36,6 @@ def derive_key(password: str, salt: bytes) -> bytes:
         backend=backend
     )
     return kdf.derive(password.encode())
-
 
 # =========================
 # 🔐 Encrypt File
@@ -82,7 +89,6 @@ def encrypt_file():
 
         messagebox.showinfo("Encrypted", f"Saved: {os.path.basename(output_path)}")
 
-
 # =========================
 # 🔓 Decrypt File
 # =========================
@@ -129,9 +135,8 @@ def decrypt_file():
     except (InvalidTag, ValueError):
         messagebox.showerror("Error", "Decryption failed. Incorrect password or file corrupted.")
 
-
 # =========================
-# ☠️ Secure File Shredder
+# ☠️ Secure File Shredder (Improved)
 # =========================
 def destroy_file():
     filepath = filedialog.askopenfilename()
@@ -143,23 +148,30 @@ def destroy_file():
         return
 
     try:
+        # Ask for overwrite passes (default 3)
         passes = simpledialog.askinteger("Overwrite Passes", "How many passes? (default 3)", initialvalue=3)
+        if passes is None:
+            return
+
         size = os.path.getsize(filepath)
 
-        with open(filepath, 'ba+', buffering=0) as f:
-            for _ in range(passes or 3):
+        # Open the file for overwriting
+        with open(filepath, 'r+b') as f:
+            for i in range(passes):
                 f.seek(0)
                 f.write(os.urandom(size))
+                if i % 10 == 0:
+                    print(f"Pass {i + 1} completed...")
 
         tempname = ''.join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(12)) + ".del"
         temp_path = os.path.join(os.path.dirname(filepath), tempname)
+
         os.rename(filepath, temp_path)
         os.remove(temp_path)
 
         messagebox.showinfo("Destroyed", "File securely shredded.")
     except Exception as e:
         messagebox.showerror("Error", f"Failed to shred file:\n{e}")
-
 
 # =========================
 # 🧪 Password Strength Check
@@ -172,7 +184,6 @@ def check_password_strength(password: str) -> bool:
         re.search(r'[0-9]', password) and
         re.search(r'[\W_]', password)
     )
-
 
 # =========================
 # 🖥️ GUI Setup
